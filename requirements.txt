@@ -1,5 +1,5 @@
 streamlit
 pypdf
-pdf2image
-reportlab
 Pillow
+PyMuPDF
+reportlab
