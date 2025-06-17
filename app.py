@@ -113,60 +113,59 @@ if st.session_state.step == 2:
         st.session_state.step = 3
 
 
-# ------------------------- 3단계: 문제 페이지 워터마크 ----------------------------
+# ------------------------- 3단계: 워터마크 입력 및 문제 저장 ----------------------------
 if st.session_state.step == 3:
-    st.header("3단계: 문제 페이지 워터마크 삽입")
+    st.header("3단계: 문제 페이지에 워터마크 삽입")
 
-    wm_input = st.text_area("✍️ 워터마크 입력 (한 줄에 '텍스트, 개수' 형식으로)",
-                            help="예: 월요일, 2 → 1페이지: '1 월요일', 2페이지: '2 월요일'")
+    reader = PdfReader(st.session_state.merged_pdf_path)
+    all_indices = list(range(len(reader.pages)))
+    problem_indices = [i for i in all_indices if i not in st.session_state.answer_indices]
+
+    st.markdown("### 워터마크 입력")
+    st.markdown("각 줄에 `텍스트, 페이지 수` 형태로 입력하세요. 예시:")
+    st.code("월요일, 2\n화요일, 3")
+
+    wm_input = st.text_area("워터마크 내용 입력 (Ctrl+Enter로 적용)", key="wm_input")
 
     def apply_watermarks(input_pdf, wm_texts):
         reader = PdfReader(input_pdf)
         writer = PdfWriter()
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import letter
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
-        from reportlab.lib.colors import Color
-        pdfmetrics.registerFont(TTFont('NanumBarunGothicBold', 'NanumBarunGothicBold.ttf'))
 
-        for i, page in enumerate(reader.pages):
-            if i in st.session_state.answer_indices:
-                continue
+        for i, idx in enumerate(problem_indices):
+            page = reader.pages[idx]
             wm_text = f"{i+1} {wm_texts[i]}"
-            packet = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-            c = canvas.Canvas(packet.name, pagesize=letter)
-            c.setFont("NanumBarunGothicBold", 30)
-            c.setFillColor(Color(0.5, 0.5, 0.5, alpha=0.3))  # 회색 + 반투명
-            c.drawCentredString(300, 400, wm_text)
-            c.save()
 
-            wm_reader = PdfReader(packet.name)
-            page.merge_page(wm_reader.pages[0])
+            packet = io.BytesIO()
+            can = canvas.Canvas(packet, pagesize=letter)
+            can.setFont("NanumBarunGothicBold", 20)
+            gray_color = Color(0.4, 0.4, 0.4, alpha=0.3)
+            can.setFillColor(gray_color)
+            can.drawCentredString(letter[0] / 2, letter[1] / 2, wm_text)
+            can.save()
+
+            packet.seek(0)
+            wm_pdf = PdfReader(packet)
+            page.merge_page(wm_pdf.pages[0])
             writer.add_page(page)
-            os.remove(packet.name)
 
         temp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         with open(temp_out.name, "wb") as f:
             writer.write(f)
         return temp_out.name
 
-    if wm_input:
-        try:
-            wm_lines = wm_input.strip().splitlines()
-            wm_texts = []
-            for line in wm_lines:
-                txt, cnt = line.split(",")
-                wm_texts.extend([txt.strip()] * int(cnt))
+    try:
+        wm_lines = wm_input.strip().splitlines()
+        wm_texts = []
+        for line in wm_lines:
+            txt, cnt = line.split(",")
+            wm_texts.extend([txt.strip()] * int(cnt))
 
-            problem_indices = [i for i in range(len(PdfReader(st.session_state.merged_pdf_path).pages)) if i not in st.session_state.answer_indices]
+        if len(wm_texts) != len(problem_indices):
+            st.error(f"⚠️ 총 입력된 워터마크 수({len(wm_texts)})가 문제 페이지 수({len(problem_indices)})와 다릅니다.")
+        else:
+            watermarked_pdf = apply_watermarks(st.session_state.merged_pdf_path, wm_texts)
+            with open(watermarked_pdf, "rb") as f:
+                st.download_button("📄 문제 (워터마크 포함) 저장", f.read(), file_name="questions_watermarked.pdf")
+    except Exception as e:
+        st.error(f"입력 오류: {e}")
 
-            if len(wm_texts) != len(problem_indices):
-                st.error(f"⚠️ 입력된 워터마크 수({len(wm_texts)})와 문제 페이지 수({len(problem_indices)})가 일치하지 않습니다.")
-            else:
-                if st.button("🖋️ 워터마크 적용 및 문제 저장"):
-                    watermarked_pdf = apply_watermarks(st.session_state.merged_pdf_path, wm_texts)
-                    with open(watermarked_pdf, "rb") as f:
-                        st.download_button("📄 문제 PDF 저장", f.read(), file_name="questions_watermarked.pdf")
-        except Exception as e:
-            st.error(f"입력 오류: {e}")
