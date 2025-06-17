@@ -82,20 +82,23 @@ if st.session_state.step == 2:
     st.session_state.merged_pdf_path = merged_path
     thumbs = generate_thumbnails(merged_path)
 
-    cols_per_row = max(1, st.columns(1)[0].width // 180)
-    rows = [thumbs[i:i+cols_per_row] for i in range(0, len(thumbs), cols_per_row)]
+    cols_per_row = 4  # 화면 크기에 맞게 조정 가능
 
-    for row_idx, row in enumerate(rows):
-        cols = st.columns(len(row))
-        for col_idx, img in enumerate(row):
-            idx = row_idx * cols_per_row + col_idx
-            with cols[col_idx]:
-                st.image(img, caption=f"Page {idx+1}", use_container_width=True)
-                selected = st.checkbox("답지로 선택", key=f"answer_{idx}")
-                if selected:
-                    st.session_state.answer_indices.add(idx)
-                else:
-                    st.session_state.answer_indices.discard(idx)
+    if "answer_indices" not in st.session_state:
+        st.session_state.answer_indices = set()
+
+    for i in range(0, len(thumbs), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx < len(thumbs):
+                with col:
+                    st.image(thumbs[idx], caption=f"Page {idx+1}", use_container_width=True)
+                    selected = st.checkbox("답지로 선택", key=f"answer_{idx}")
+                    if selected:
+                        st.session_state.answer_indices.add(idx)
+                    else:
+                        st.session_state.answer_indices.discard(idx)
 
     if st.button("💾 답지만 저장하고 다음 단계로"):
         reader = PdfReader(merged_path)
@@ -108,6 +111,7 @@ if st.session_state.step == 2:
         with open(temp_ans.name, "rb") as f:
             st.download_button("📥 답지 PDF 저장", data=f.read(), file_name="answers.pdf")
         st.session_state.step = 3
+
 
 # ------------------------- 3단계: 문제 페이지 워터마크 ----------------------------
 if st.session_state.step == 3:
