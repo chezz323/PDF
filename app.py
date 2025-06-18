@@ -24,8 +24,17 @@ if "NanumFontLoaded" not in st.session_state:
     pdfmetrics.registerFont(TTFont("Nanum", "NanumBarunGothic.ttf"))
     st.session_state.NanumFontLoaded = True
 
+def show_header():
+    cols = st.columns([1, 6])
+    with cols[0]:
+        st.image("logo.png", width=80)
+    with cols[1]:
+        st.markdown("<h1 style='margin-bottom:0;'>KONG PDF</h1>", unsafe_allow_html=True)
+
+
 # ------------------- Step 1 -------------------
 if st.session_state.step == 1:
+    show_header()
     st.header("1단계: PDF 파일 업로드")
 
     uploaded = st.file_uploader("PDF 파일을 업로드하세요 (여러 개 가능)", type=["pdf"], accept_multiple_files=True)
@@ -45,6 +54,7 @@ if st.session_state.step == 1:
 
 # ------------------- Step 2 -------------------
 if st.session_state.step == 2:
+    show_header()
     st.header("2단계: 답지 페이지 선택 및 저장")
 
     def merge_pdfs(files):
@@ -106,6 +116,7 @@ if st.session_state.step == 2:
 
 # ------------------- Step 3 -------------------
 if st.session_state.step == 3:
+    show_header()
     st.header("3단계: 문제 페이지에 워터마크 삽입")
 
     wm_input = st.text_area("한 줄에 텍스트, 장수 입력 (예: 일요일, 1)")
