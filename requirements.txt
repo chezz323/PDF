@@ -4,3 +4,4 @@ Pillow
 PyMuPDF
 reportlab
 PyPDF2
+streamlit_js_eval
