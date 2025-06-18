@@ -3,3 +3,4 @@ pypdf
 Pillow
 PyMuPDF
 reportlab
+PyPDF2

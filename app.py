@@ -1,61 +1,67 @@
 import streamlit as st
-from pypdf import PdfReader, PdfWriter
-import tempfile
-import os
+from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
-import fitz  # PyMuPDF
+import tempfile, fitz
 
-st.set_page_config(page_title="PDF 정리 도우미", layout="wide")
+# ------------------- 설정 -------------------
+st.set_page_config(page_title="PDF 문제/답지 도구", layout="wide")
 
-# ------------------------- 상태 초기화 ----------------------------
-if "file_order" not in st.session_state:
-    st.session_state.file_order = []
-if "confirmed" not in st.session_state:
-    st.session_state.confirmed = False
-if "sorted_files" not in st.session_state:
-    st.session_state.sorted_files = []
 if "step" not in st.session_state:
     st.session_state.step = 1
+if "sorted_files" not in st.session_state:
+    st.session_state.sorted_files = []
 if "answer_indices" not in st.session_state:
     st.session_state.answer_indices = set()
 if "merged_pdf_path" not in st.session_state:
-    st.session_state.merged_pdf_path = ""
+    st.session_state.merged_pdf_path = None
 
-# ------------------------- 1단계: 파일 업로드 및 순서 조정 ----------------------------
-st.header("1단계: PDF 파일 업로드 및 순서 조정")
-uploaded_files = st.file_uploader("📁 PDF 파일 업로드", type=["pdf"], accept_multiple_files=True)
+st.markdown("""
+    <style>
+    .step {
+        display: none;
+        animation: fadein 0.3s ease-in-out;
+    }
+    .visible {
+        display: block !important;
+    }
+    @keyframes fadein {
+        from {opacity: 0;}
+        to {opacity: 1;}
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-if uploaded_files and not st.session_state.file_order:
-    st.session_state.file_order = list(range(len(uploaded_files)))
+# ------------------- Step 1 -------------------
+if st.session_state.step == 1:
+    st.markdown("<div class='step visible'>", unsafe_allow_html=True)
+    st.header("1단계: PDF 파일 업로드 및 순서 조정")
 
-def move_file(index, direction):
-    order = st.session_state.file_order
-    new_index = index + direction
-    if 0 <= new_index < len(order):
-        order[index], order[new_index] = order[new_index], order[index]
+    uploaded = st.file_uploader("PDF 파일들을 업로드하세요", type="pdf", accept_multiple_files=True)
+    if uploaded:
+        st.session_state.sorted_files = uploaded
 
-if uploaded_files and st.session_state.file_order:
-    st.markdown("### 📑 업로드된 파일 순서 조정")
-    for i, file_index in enumerate(st.session_state.file_order):
-        file = uploaded_files[file_index]
-        with st.container():
-            col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
-            with col1:
-                st.write(f"{i+1}. {file.name}")
-            with col2:
-                if st.button("⬆️", key=f"up_{i}"):
-                    move_file(i, -1)
-            with col3:
-                if st.button("⬇️", key=f"down_{i}"):
-                    move_file(i, 1)
+    for idx, file in enumerate(st.session_state.sorted_files):
+        unique_key = f"{file.name}_{idx}"  # 파일 이름 + 인덱스로 고유화
+        col1, col2, col3 = st.columns([5, 1, 1])
+        col1.markdown(f"**{idx+1}. {file.name}**")
+        if col2.button("⬆️", key=f"up_{unique_key}") and idx > 0:
+            st.session_state.sorted_files[idx], st.session_state.sorted_files[idx - 1] = \
+                st.session_state.sorted_files[idx - 1], st.session_state.sorted_files[idx]
+            st.rerun()
+        if col3.button("⬇️", key=f"down_{unique_key}") and idx < len(st.session_state.sorted_files) - 1:
+            st.session_state.sorted_files[idx], st.session_state.sorted_files[idx + 1] = \
+                st.session_state.sorted_files[idx + 1], st.session_state.sorted_files[idx]
+            st.rerun()
 
-    if st.button("✅ 확인하고 다음 단계로"):
-        st.session_state.confirmed = True
-        st.session_state.sorted_files = [uploaded_files[i] for i in st.session_state.file_order]
-        st.session_state.step = 2
+    if st.session_state.sorted_files:
+        if st.button("➡️ 다음 단계로"):
+            st.session_state.step = 2
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ------------------------- 2단계: 답지 선택 ----------------------------
+# ------------------- Step 2 -------------------
 if st.session_state.step == 2:
+    st.markdown("<div class='step visible'>", unsafe_allow_html=True)
     st.header("2단계: 답지 페이지 선택 및 저장")
 
     def merge_pdfs(files):
@@ -82,23 +88,21 @@ if st.session_state.step == 2:
     st.session_state.merged_pdf_path = merged_path
     thumbs = generate_thumbnails(merged_path)
 
-    cols_per_row = 4  # 화면 크기에 맞게 조정 가능
+    page_width = st.get_option("browser.clientWidth") or 1200
+    cols_per_row = max(1, page_width // 220)
+    rows = [thumbs[i:i+cols_per_row] for i in range(0, len(thumbs), cols_per_row)]
 
-    if "answer_indices" not in st.session_state:
-        st.session_state.answer_indices = set()
-
-    for i in range(0, len(thumbs), cols_per_row):
-        cols = st.columns(cols_per_row)
-        for j, col in enumerate(cols):
-            idx = i + j
-            if idx < len(thumbs):
-                with col:
-                    st.image(thumbs[idx], caption=f"Page {idx+1}", use_container_width=True)
-                    selected = st.checkbox("답지로 선택", key=f"answer_{idx}")
-                    if selected:
-                        st.session_state.answer_indices.add(idx)
-                    else:
-                        st.session_state.answer_indices.discard(idx)
+    for row_idx, row in enumerate(rows):
+        cols = st.columns(len(row))
+        for col_idx, img in enumerate(row):
+            idx = row_idx * cols_per_row + col_idx
+            with cols[col_idx]:
+                st.image(img, caption=f"Page {idx+1}", use_container_width=True)
+                selected = st.checkbox("답지로 선택", key=f"answer_{idx}")
+                if selected:
+                    st.session_state.answer_indices.add(idx)
+                else:
+                    st.session_state.answer_indices.discard(idx)
 
     if st.button("💾 답지만 저장하고 다음 단계로"):
         reader = PdfReader(merged_path)
@@ -111,61 +115,44 @@ if st.session_state.step == 2:
         with open(temp_ans.name, "rb") as f:
             st.download_button("📥 답지 PDF 저장", data=f.read(), file_name="answers.pdf")
         st.session_state.step = 3
+        st.rerun()
 
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ------------------------- 3단계: 워터마크 입력 및 문제 저장 ----------------------------
+# ------------------- Step 3 -------------------
 if st.session_state.step == 3:
+    st.markdown("<div class='step visible'>", unsafe_allow_html=True)
     st.header("3단계: 문제 페이지에 워터마크 삽입")
 
-    reader = PdfReader(st.session_state.merged_pdf_path)
-    all_indices = list(range(len(reader.pages)))
-    problem_indices = [i for i in all_indices if i not in st.session_state.answer_indices]
+    wm_input = st.text_area("한 줄에 텍스트, 장수 입력 (예: 일요일, 1)")
 
-    st.markdown("### 워터마크 입력")
-    st.markdown("각 줄에 `텍스트, 페이지 수` 형태로 입력하세요. 예시:")
-    st.code("월요일, 2\n화요일, 3")
+    if wm_input:
+        try:
+            wm_lines = wm_input.strip().splitlines()
+            wm_texts = []
+            for line in wm_lines:
+                txt, cnt = line.split(",")
+                wm_texts.extend([txt.strip()] * int(cnt))
 
-    wm_input = st.text_area("워터마크 내용 입력 (Ctrl+Enter로 적용)", key="wm_input")
+            problem_indices = sorted(set(range(len(PdfReader(st.session_state.merged_pdf_path).pages))) - st.session_state.answer_indices)
 
-    def apply_watermarks(input_pdf, wm_texts):
-        reader = PdfReader(input_pdf)
-        writer = PdfWriter()
+            if len(wm_texts) != len(problem_indices):
+                st.error(f"⚠️ 총 입력된 워터마크 수({len(wm_texts)})가 문제 페이지 수({len(problem_indices)})와 다릅니다.")
+            else:
+                if st.button("🖋️ 워터마크 적용 후 문제 저장"):
+                    reader = PdfReader(st.session_state.merged_pdf_path)
+                    writer = PdfWriter()
+                    for i, idx in enumerate(problem_indices):
+                        page = reader.pages[idx]
+                        watermark = f"{i+1} {wm_texts[i]}"
+                        page.merge_text(watermark, 300, 500)  # 예시 위치
+                        writer.add_page(page)
+                    temp_q = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+                    with open(temp_q.name, "wb") as f:
+                        writer.write(f)
+                    with open(temp_q.name, "rb") as f:
+                        st.download_button("📄 문제 (워터마크 포함) 저장", f.read(), file_name="questions_watermarked.pdf")
+        except Exception as e:
+            st.error(f"입력 오류: {e}")
 
-        for i, idx in enumerate(problem_indices):
-            page = reader.pages[idx]
-            wm_text = f"{i+1} {wm_texts[i]}"
-
-            packet = io.BytesIO()
-            can = canvas.Canvas(packet, pagesize=letter)
-            can.setFont("NanumBarunGothicBold", 20)
-            gray_color = Color(0.4, 0.4, 0.4, alpha=0.3)
-            can.setFillColor(gray_color)
-            can.drawCentredString(letter[0] / 2, letter[1] / 2, wm_text)
-            can.save()
-
-            packet.seek(0)
-            wm_pdf = PdfReader(packet)
-            page.merge_page(wm_pdf.pages[0])
-            writer.add_page(page)
-
-        temp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        with open(temp_out.name, "wb") as f:
-            writer.write(f)
-        return temp_out.name
-
-    try:
-        wm_lines = wm_input.strip().splitlines()
-        wm_texts = []
-        for line in wm_lines:
-            txt, cnt = line.split(",")
-            wm_texts.extend([txt.strip()] * int(cnt))
-
-        if len(wm_texts) != len(problem_indices):
-            st.error(f"⚠️ 총 입력된 워터마크 수({len(wm_texts)})가 문제 페이지 수({len(problem_indices)})와 다릅니다.")
-        else:
-            watermarked_pdf = apply_watermarks(st.session_state.merged_pdf_path, wm_texts)
-            with open(watermarked_pdf, "rb") as f:
-                st.download_button("📄 문제 (워터마크 포함) 저장", f.read(), file_name="questions_watermarked.pdf")
-    except Exception as e:
-        st.error(f"입력 오류: {e}")
-
+    st.markdown("</div>", unsafe_allow_html=True)
