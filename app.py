@@ -31,7 +31,7 @@ if st.session_state.step == 1:
         st.session_state.sorted_files = uploaded
 
     if st.session_state.sorted_files:
-        st.subheader("업로드된 파일 순서")
+        st.subheader("PDF 파일 순서")
         for i, file in enumerate(st.session_state.sorted_files, 1):
             st.markdown(f"**{i}. {file.name}**")
 
@@ -84,7 +84,7 @@ if st.session_state.step == 2:
                 else:
                     st.session_state.answer_indices.discard(idx)
 
-    if st.button("💾 답지만 저장하고 다음 단계로"):
+    if thumbs:
         reader = PdfReader(merged_path)
         writer = PdfWriter()
         for i in sorted(st.session_state.answer_indices):
@@ -92,16 +92,25 @@ if st.session_state.step == 2:
         temp_ans = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         with open(temp_ans.name, "wb") as f:
             writer.write(f)
+
+        # PDF 저장 버튼
         with open(temp_ans.name, "rb") as f:
-            st.download_button("📥 답지 PDF 저장", data=f.read(), file_name="answers.pdf")
-        st.session_state.step = 3
-        st.rerun()
+            st.download_button("📥 답지 PDF 저장", data=f.read(), file_name="answers.pdf", key="download_answer")
+
+        # 단계 전환 버튼
+        if st.button("다음 단계로 ▶️"):
+            st.session_state.step = 3
+            st.rerun()
+
 
 # ------------------- Step 3 -------------------
 if st.session_state.step == 3:
     st.header("3단계: 문제 페이지에 워터마크 삽입")
 
     wm_input = st.text_area("한 줄에 텍스트, 장수 입력 (예: 일요일, 1)")
+    problem_indices = sorted(set(range(len(PdfReader(st.session_state.merged_pdf_path).pages))) - st.session_state.answer_indices)
+    st.info(f"💡 총 {len(problem_indices)}개의 문제 페이지가 있습니다. 아래에 정확히 {len(problem_indices)}줄의 워터마크를 입력해주세요.")
+
 
     def create_watermark(text):
         buffer = BytesIO()
