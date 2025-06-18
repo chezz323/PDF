@@ -3,9 +3,6 @@ from PyPDF2 import PdfReader, PdfWriter
 from PIL import Image
 import tempfile, fitz  # fitz = PyMuPDF
 from streamlit_js_eval import streamlit_js_eval
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from PyPDF2 import PdfReader, PdfWriter
 from io import BytesIO
 
 # ------------------- 설정 -------------------
@@ -93,15 +90,12 @@ if st.session_state.step == 2:
         with open(temp_ans.name, "wb") as f:
             writer.write(f)
 
-        # PDF 저장 버튼
         with open(temp_ans.name, "rb") as f:
             st.download_button("📥 답지 PDF 저장", data=f.read(), file_name="answers.pdf", key="download_answer")
 
-        # 단계 전환 버튼
         if st.button("다음 단계로 ▶️"):
             st.session_state.step = 3
             st.rerun()
-
 
 # ------------------- Step 3 -------------------
 if st.session_state.step == 3:
@@ -109,18 +103,31 @@ if st.session_state.step == 3:
 
     wm_input = st.text_area("한 줄에 텍스트, 장수 입력 (예: 일요일, 1)")
     problem_indices = sorted(set(range(len(PdfReader(st.session_state.merged_pdf_path).pages))) - st.session_state.answer_indices)
-    st.info(f"💡 총 {len(problem_indices)}개의 문제 페이지가 있습니다. 아래에 정확히 {len(problem_indices)}줄의 워터마크를 입력해주세요.")
+    st.info(f"💡 총 {len(problem_indices)}개의 문제 페이지가 있습니다. 페이지의 합이 {len(problem_indices)}가 되도록 입력해주세요.")
 
+    def apply_watermark(input_path, output_path, texts, font_path="NanumBarunGothic.ttf", font_size=14, opacity=0.3):
+        doc = fitz.open(input_path)
+        try:
+            doc.insert_font(fontname="Nanum", fontfile=font_path, set_simple=True)
+            font_to_use = "Nanum"
+        except Exception as e:
+            st.warning(f"⚠️ 사용자 폰트를 불러올 수 없어 기본 폰트를 사용합니다: {e}")
+            font_to_use = "helv"
 
-    def create_watermark(text):
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=letter)
-        c.setFont("Helvetica", 40)
-        c.setFillGray(0.5, 0.5)
-        c.drawString(100, 500, text)
-        c.save()
-        buffer.seek(0)
-        return PdfReader(buffer).pages[0]
+        for i, page_num in enumerate(sorted(set(range(len(doc))) - st.session_state.answer_indices)):
+            page = doc[page_num]
+            text = f"{i+1} {texts[i]}"
+            rect = fitz.Rect(100, 100, 500, 150)
+            page.insert_textbox(
+                rect,
+                text,
+                fontname=font_to_use,
+                fontsize=font_size,
+                fill=(0, 0, 0),
+                overlay=True,
+                render_mode=3,
+            )
+        doc.save(output_path)
 
     if wm_input:
         try:
@@ -130,22 +137,12 @@ if st.session_state.step == 3:
                 txt, cnt = line.split(",")
                 wm_texts.extend([txt.strip()] * int(cnt))
 
-            reader = PdfReader(st.session_state.merged_pdf_path)
-            problem_indices = sorted(set(range(len(reader.pages))) - st.session_state.answer_indices)
-
             if len(wm_texts) != len(problem_indices):
                 st.error(f"⚠️ 총 입력된 워터마크 수({len(wm_texts)})가 문제 페이지 수({len(problem_indices)})와 다릅니다.")
             else:
                 if st.button("🖋️ 워터마크 적용 후 문제 저장"):
-                    writer = PdfWriter()
-                    for i, idx in enumerate(problem_indices):
-                        base_page = reader.pages[idx]
-                        wm_page = create_watermark(f"{i+1} {wm_texts[i]}")
-                        base_page.merge_page(wm_page)
-                        writer.add_page(base_page)
                     temp_q = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-                    with open(temp_q.name, "wb") as f:
-                        writer.write(f)
+                    apply_watermark(st.session_state.merged_pdf_path, temp_q.name, wm_texts)
                     with open(temp_q.name, "rb") as f:
                         st.download_button("📄 문제 (워터마크 포함) 저장", f.read(), file_name="questions_watermarked.pdf")
         except Exception as e:
