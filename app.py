@@ -32,13 +32,15 @@ def show_header():
     with cols[1]:
         st.markdown("<h1 style='margin-bottom:0;'>KONG PDF</h1>", unsafe_allow_html=True)
 
+# ------------------- 헤더 출력 -------------------
+show_header()
+
 # ------------------- 탭 분기 -------------------
 tab1, tab2 = st.tabs(["📘 문제/답지 분리 도구", "✏️ PDF 필기"])
 
 # ------------------- PDF 문제/답지 도구 -------------------
 with tab1:
     if st.session_state.step == 1:
-        show_header()
         st.header("1단계: PDF 파일 업로드")
 
         uploaded = st.file_uploader("PDF 파일을 업로드하세요 (여러 개 가능)", type=["pdf"], accept_multiple_files=True)
@@ -57,7 +59,6 @@ with tab1:
                 st.rerun()
 
     elif st.session_state.step == 2:
-        show_header()
         st.header("2단계: 답지 페이지 선택 및 저장")
 
         def merge_pdfs(files):
@@ -118,7 +119,6 @@ with tab1:
                 st.rerun()
 
     elif st.session_state.step == 3:
-        show_header()
         st.header("3단계: 문제 페이지에 워터마크 삽입")
 
         wm_input = st.text_area("한 줄에 텍스트, 장수 입력 (예: 일요일, 1)")
@@ -169,30 +169,58 @@ with tab1:
 # ------------------- PDF 필기 탭 -------------------
 with tab2:
     show_header()
-    st.header("✏️ PDF Freehand Annotation")
+    st.header("✏️ PDF 페이지에 직접 필기하기")
 
     uploaded_pdf = st.file_uploader("PDF 파일 업로드 (1개만)", type=["pdf"], key="note_pdf")
 
     if uploaded_pdf:
-        # 페이지 로딩
         doc = fitz.open(stream=uploaded_pdf.read(), filetype="pdf")
         total_pages = len(doc)
-        page_idx = st.slider("페이지 선택", 1, total_pages, 1) - 1
-        page = doc.load_page(page_idx)
 
-        # 배경 이미지 생성
+        if "note_page_idx" not in st.session_state:
+            st.session_state.note_page_idx = 0
+
+        # 페이지 전환 버튼
+        cols = st.columns([1, 5, 1])
+        with cols[0]:
+            if st.button("⬅ 이전"):
+                if st.session_state.note_page_idx > 0:
+                    st.session_state.note_page_idx -= 1
+        with cols[2]:
+            if st.button("다음 ➡"):
+                if st.session_state.note_page_idx < total_pages - 1:
+                    st.session_state.note_page_idx += 1
+
+        page_idx = st.session_state.note_page_idx
+        st.markdown(f"**페이지 {page_idx + 1} / {total_pages}**")
+
+        page = doc.load_page(page_idx)
         pix = page.get_pixmap(dpi=150)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-        # 펜 색상 선택
-        pen_color = st.selectbox("펜 색상 선택", ["검정", "파랑", "빨강"])
-        color_map = {"검정": "#000000", "파랑": "#0000FF", "빨강": "#FF0000"}
+        # 펜 색상 버튼 UI
+        if "pen_color" not in st.session_state:
+            st.session_state.pen_color = "#000000"
+
+        st.markdown("#### 펜 색상 선택")
+        color_options = {
+            "검정": "#000000",
+            "파랑": "#0000FF",
+            "빨강": "#FF0000"
+        }
+        color_cols = st.columns(len(color_options))
+        for i, (label, hex_code) in enumerate(color_options.items()):
+            is_selected = st.session_state.pen_color == hex_code
+            button_type = "primary" if is_selected else "secondary"
+            with color_cols[i]:
+                if st.button(label, key=f"pen_btn_{label}", type=button_type):
+                    st.session_state.pen_color = hex_code
 
         # 필기 캔버스
         canvas_result = st_canvas(
-            fill_color="rgba(255, 255, 255, 0)",  # 배경 투명
+            fill_color="rgba(255, 255, 255, 0)",
             stroke_width=3,
-            stroke_color=color_map[pen_color],
+            stroke_color=st.session_state.pen_color,
             background_image=img,
             height=img.height,
             width=img.width,
@@ -200,15 +228,13 @@ with tab2:
             key=f"canvas_{page_idx}",
         )
 
-        # 필기 결과 저장용 상태값 초기화
+        # 필기 결과 저장
         if "drawn_images" not in st.session_state:
             st.session_state.drawn_images = {}
-
-        # 저장 버튼: 현재 페이지 필기 결과 저장
         if canvas_result.image_data is not None:
             st.session_state.drawn_images[page_idx] = Image.fromarray(canvas_result.image_data.astype("uint8"))
 
-        # 전체 PDF로 저장 버튼
+        # 전체 PDF로 저장
         if st.button("📄 모든 필기 저장 (PDF)"):
             writer = PdfWriter()
             for i in range(total_pages):
@@ -216,14 +242,12 @@ with tab2:
                 pix = page.get_pixmap(dpi=150)
                 base_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-                # 필기 적용 여부 확인
                 if i in st.session_state.drawn_images:
                     overlay = st.session_state.drawn_images[i].convert("RGBA").resize(base_img.size)
                     combined = Image.alpha_composite(base_img.convert("RGBA"), overlay)
                 else:
                     combined = base_img
 
-                # PIL → PDF
                 buffer = BytesIO()
                 combined.convert("RGB").save(buffer, format="PDF")
                 buffer.seek(0)
