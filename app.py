@@ -222,8 +222,12 @@ with tab2:
         )
 
 # 사이드바는 조건부로 UI 표시
-if st.session_state.current_tab == "PDF 필기":
-    pdf_file = st.sidebar.file_uploader("📄 PDF 업로드", type=["pdf"])
+if st.session_state.current_tab == tab_names[1]:
+    with st.sidebar:
+        pdf_file = st.file_uploader("📄 PDF 업로드", type=["pdf"], key="annotate_pdf")
+        if pdf_file:
+            st.session_state.pdf_file_bytes = pdf_file.read()
+
     drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
     stroke_width = st.sidebar.slider("펜 굵기", 1, 25, 3)
     if drawing_mode == 'point':
