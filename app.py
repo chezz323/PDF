@@ -168,7 +168,6 @@ with tab1:
 
 # ------------------- PDF 필기 탭 -------------------
 with tab2:
-    show_header()
     st.header("✏️ PDF 페이지에 직접 필기하기")
 
     uploaded_pdf = st.file_uploader("PDF 파일 업로드 (1개만)", type=["pdf"], key="note_pdf")
@@ -195,8 +194,12 @@ with tab2:
         st.markdown(f"**페이지 {page_idx + 1} / {total_pages}**")
 
         page = doc.load_page(page_idx)
-        pix = page.get_pixmap(dpi=150)
+        #pix = page.get_pixmap(dpi=150)
+        #img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img.thumbnail((1000, 1000))  # 최대 사이즈 제한
+        st.image(img, caption="디버그: 이미지 확인")
 
         # 펜 색상 버튼 UI
         if "pen_color" not in st.session_state:
