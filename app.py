@@ -197,9 +197,15 @@ with tab2:
         #pix = page.get_pixmap(dpi=150)
         #img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        img.thumbnail((1000, 1000))  # 최대 사이즈 제한
-        st.image(img, caption="디버그: 이미지 확인")
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
+        # 안전 크기 제한
+        MAX_WIDTH = 1200
+        if img.width > MAX_WIDTH:
+            img.thumbnail((MAX_WIDTH, int(img.height * MAX_WIDTH / img.width)))
+
+        # 디버그
+        st.image(img, caption="배경 이미지 확인")
+
 
         # 펜 색상 버튼 UI
         if "pen_color" not in st.session_state:
@@ -220,8 +226,6 @@ with tab2:
                     st.session_state.pen_color = hex_code
 
         # 필기 캔버스
-        img = img.convert("RGBA")
-
         canvas_result = st_canvas(
             #fill_color="rgba(255, 255, 255, 0)",
             background_image=img.copy(),
