@@ -1,9 +1,7 @@
 streamlit==1.32.2
-PyMuPDF
-PyPDF2
+streamlit-drawable-canvas==0.9.3
+PyMuPDF==1.26.1
+Pillow==10.4.0PyMuPDF
 pypdf
-Pillow
 reportlab
 streamlit-js-eval
-streamlit-drawable-canvas
-pandas
