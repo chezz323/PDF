@@ -220,13 +220,15 @@ with tab2:
                     st.session_state.pen_color = hex_code
 
         # 필기 캔버스
+        img = img.convert("RGBA")
+
         canvas_result = st_canvas(
             #fill_color="rgba(255, 255, 255, 0)",
-            stroke_width=3,
-            stroke_color=st.session_state.pen_color,
-            background_image=img,
+            background_image=img.copy(),
             height=img.height,
             width=img.width,
+            stroke_color=st.session_state.pen_color,
+            stroke_width=3,
             drawing_mode="freedraw",
             key=f"canvas_{page_idx}",
         )
