@@ -167,46 +167,52 @@ with tab1:
                 st.error(f"입력 오류: {e}")
 
 # ------------------- PDF 필기 탭 -------------------
-import pandas as pd
 with tab2:
-    # Specify canvas parameters in application
-    drawing_mode = st.sidebar.selectbox(
-        "Drawing tool:", ("point", "freedraw", "line", "rect", "circle", "transform")
-    )
+    st.header("✏️ PDF 페이지에 직접 필기하기")
+    pdf_file = st.sidebar.file_uploader("📄 PDF 업로드", type=["pdf"])
+    if pdf_file:
+        doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
 
-    stroke_width = st.sidebar.slider("Stroke width: ", 1, 25, 3)
-    if drawing_mode == 'point':
-        point_display_radius = st.sidebar.slider("Point display radius: ", 1, 25, 3)
-    stroke_color = st.sidebar.color_picker("Stroke color hex: ")
-    bg_color = st.sidebar.color_picker("Background color hex: ", "#eee")
-    bg_image = st.sidebar.file_uploader("Background image:", type=["png", "jpg"])
+        # 현재 페이지 상태
+        if "pdf_page" not in st.session_state:
+            st.session_state.pdf_page = 0
 
-    realtime_update = st.sidebar.checkbox("Update in realtime", True)
+        # 페이지 이동 버튼
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            if st.button("⬅ 이전"):
+                st.session_state.pdf_page = max(0, st.session_state.pdf_page - 1)
+        with col2:
+            if st.button("다음 ➡"):
+                st.session_state.pdf_page = min(len(doc) - 1, st.session_state.pdf_page + 1)
 
-        
+        # 현재 페이지 이미지 생성
+        page = doc[st.session_state.pdf_page]
+        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # 해상도 조절
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
 
-    # Create a canvas component
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
-        stroke_width=stroke_width,
-        stroke_color=stroke_color,
-        background_color=bg_color,
-        background_image=Image.open(bg_image) if bg_image else None,
-        update_streamlit=realtime_update,
-        height=150,
-        drawing_mode=drawing_mode,
-        point_display_radius=point_display_radius if drawing_mode == 'point' else 0,
-        key="canvas",
-    )
+        # 사이드바 - 캔버스 설정
+        drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
+        stroke_width = st.sidebar.slider("펜 굵기", 1, 25, 3)
+        if drawing_mode == 'point':
+            point_display_radius = st.sidebar.slider("포인트 반지름", 1, 25, 3)
+        stroke_color = st.sidebar.color_picker("펜 색상", "#ff0000")
+        realtime_update = st.sidebar.checkbox("실시간 반영", True)
 
-    # Do something interesting with the image data and paths
-    if canvas_result.image_data is not None:
-        st.image(canvas_result.image_data)
-    if canvas_result.json_data is not None:
-        objects = pd.json_normalize(canvas_result.json_data["objects"]) # need to convert obj to str because PyArrow
-        for col in objects.select_dtypes(include=['object']).columns:
-            objects[col] = objects[col].astype("str")
-        st.dataframe(objects)
+        # 캔버스
+        st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",  # 도형 내부 색상
+            stroke_width=stroke_width,
+            stroke_color=stroke_color,
+            background_image=img,
+            update_streamlit=realtime_update,
+            height=img.height,
+            width=img.width,
+            drawing_mode=drawing_mode,
+            point_display_radius=point_display_radius if drawing_mode == "point" else 0,
+            key=f"canvas_{st.session_state.pdf_page}"
+        )
+
     '''st.header("✏️ PDF 페이지에 직접 필기하기")
 
     uploaded_pdf = st.file_uploader("PDF 파일 업로드 (1개만)", type=["pdf"], key="note_pdf")
