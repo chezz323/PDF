@@ -177,16 +177,17 @@ with tab1:
 with tab2:
     st.session_state.current_tab = tab_names[1]
     st.header("✏️ PDF 페이지에 직접 필기하기")
-    pdf_file = st.sidebar.file_uploader("📄 PDF 업로드", type=["pdf"])
-    if pdf_file:
-        doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
 
-        # 현재 페이지 상태
+    # PDF 로딩
+    if "pdf_file_bytes" in st.session_state:
+        doc = fitz.open(stream=st.session_state.pdf_file_bytes, filetype="pdf")
+
+        # 현재 페이지 상태 초기화
         if "pdf_page" not in st.session_state:
             st.session_state.pdf_page = 0
 
         # 페이지 이동 버튼
-        col1, col2 = st.sidebar.columns(2)
+        col1, col2 = st.columns(2)
         with col1:
             if st.button("⬅ 이전"):
                 st.session_state.pdf_page = max(0, st.session_state.pdf_page - 1)
@@ -199,40 +200,37 @@ with tab2:
         pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # 해상도 조절
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
 
-        # 사이드바 - 캔버스 설정
-        '''drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
-        stroke_width = st.sidebar.slider("펜 굵기", 1, 25, 3)
-        if drawing_mode == 'point':
-            point_display_radius = st.sidebar.slider("포인트 반지름", 1, 25, 3)
-        stroke_color = st.sidebar.color_picker("펜 색상", "#ff0000")
-        realtime_update = st.sidebar.checkbox("실시간 반영", True)'''
-
         # 캔버스
         st_canvas(
             fill_color="rgba(255, 165, 0, 0.3)",  # 도형 내부 색상
-            stroke_width=stroke_width,
-            stroke_color=stroke_color,
+            stroke_width=st.session_state.get("stroke_width", 3),
+            stroke_color=st.session_state.get("stroke_color", "#ff0000"),
             background_image=img,
-            update_streamlit=realtime_update,
+            update_streamlit=st.session_state.get("realtime_update", True),
             height=img.height,
             width=img.width,
-            drawing_mode=drawing_mode,
-            point_display_radius=point_display_radius if drawing_mode == "point" else 0,
+            drawing_mode=st.session_state.get("drawing_mode", "freedraw"),
+            point_display_radius=st.session_state.get("point_display_radius", 3),
             key=f"canvas_{st.session_state.pdf_page}"
         )
+    else:
+        st.info("사이드바에서 PDF를 업로드해 주세요.")
 
-# 사이드바는 조건부로 UI 표시
+# ------------------- 사이드바 조건부 출력 -------------------
 if st.session_state.current_tab == tab_names[1]:
     with st.sidebar:
         pdf_file = st.file_uploader("📄 PDF 업로드", type=["pdf"], key="annotate_pdf")
         if pdf_file:
             st.session_state.pdf_file_bytes = pdf_file.read()
+            st.session_state.pdf_page = 0  # 새 PDF 업로드 시 첫 페이지로 초기화
 
-    drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
-    stroke_width = st.sidebar.slider("펜 굵기", 1, 25, 3)
-    if drawing_mode == 'point':
-        point_display_radius = st.sidebar.slider("포인트 반지름", 1, 25, 3)
-    stroke_color = st.sidebar.color_picker("펜 색상", "#ff0000")
+        st.markdown("---")
+        st.markdown("🖌️ **펜 설정**")
+        st.session_state["drawing_mode"] = st.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
+        st.session_state["stroke_width"] = st.slider("펜 굵기", 1, 25, 3)
+        if st.session_state["drawing_mode"] == 'point':
+            st.session_state["point_display_radius"] = st.slider("포인트 반지름", 1, 25, 3)
+        st.session_state["stroke_color"] = st.color_picker("펜 색상", "#ff0000")
+        st.session_state["realtime_update"] = st.checkbox("실시간 반영", True)
 else:
-    # 다른 탭에서는 사이드바 비워두기
     st.sidebar.empty()
