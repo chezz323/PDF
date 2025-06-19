@@ -95,7 +95,7 @@ if tab_selection == "PDF 문제/답지 도구":
             for col_idx, img in enumerate(row):
                 idx = row_idx * cols_per_row + col_idx
                 with cols[col_idx]:
-                    st.image(img, caption=f"Page {idx+1}", use_container_width=True)
+                    st.image(img, caption=f"Page {idx+1}", use_column_width=True)
                     selected = st.checkbox("답지로 선택", key=f"answer_{idx}")
                     if selected:
                         st.session_state.answer_indices.add(idx)
@@ -183,7 +183,7 @@ elif tab_selection == "PDF 필기":
         if st.session_state["drawing_mode"] == 'point':
             st.session_state["point_display_radius"] = st.slider("포인트 반지름", 1, 25, 3)
         st.session_state["stroke_color"] = st.color_picker("펜 색상", "#ff0000")
-        st.session_state["realtime_update"] = st.checkbox("실시간 반영", True)
+        #st.session_state["realtime_update"] = st.checkbox("실시간 반영", True)
 
     if "pdf_file_bytes" in st.session_state:
         doc = fitz.open(stream=st.session_state.pdf_file_bytes, filetype="pdf")
@@ -208,7 +208,7 @@ elif tab_selection == "PDF 필기":
             stroke_width=st.session_state.get("stroke_width", 3),
             stroke_color=st.session_state.get("stroke_color", "#ff0000"),
             background_image=img,
-            update_streamlit=st.session_state.get("realtime_update", True),
+            update_streamlit=True,
             height=img.height,
             width=img.width,
             drawing_mode=st.session_state.get("drawing_mode", "freedraw"),
