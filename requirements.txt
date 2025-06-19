@@ -1,7 +1,8 @@
 streamlit
+PyMuPDF
+PyPDF2
 pypdf
 Pillow
-PyMuPDF
 reportlab
-PyPDF2
-streamlit_js_eval
+streamlit-js-eval
+streamlit-drawable-canvas
