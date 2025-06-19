@@ -27,15 +27,12 @@ if "NanumFontLoaded" not in st.session_state:
 if "tab_selection" not in st.session_state:
     st.session_state.tab_selection = "PDF 문제/답지 도구"
 
-def show_header():
-    cols = st.columns([1, 6])
-    with cols[0]:
-        st.image("logo.png", width=80)
-    with cols[1]:
-        st.markdown("<h1 style='margin-bottom:0;'>KONG PDF</h1>", unsafe_allow_html=True)
-
 # ------------------- 헤더 출력 -------------------
-show_header()
+cols = st.columns([1, 6])
+with cols[0]:
+    st.image("logo.png", width=80)
+with cols[1]:
+    st.markdown("<h1 style='margin-bottom:0;'>KONG PDF</h1>", unsafe_allow_html=True)
 
 # ------------------- 탭 선택 (사이드바 기반) -------------------
 tab_selection = st.sidebar.radio("기능 선택", ["PDF 문제/답지 도구", "PDF 필기"])
@@ -173,6 +170,21 @@ if tab_selection == "PDF 문제/답지 도구":
 elif tab_selection == "PDF 필기":
     st.header("✏️ PDF 페이지에 직접 필기하기")
 
+    with st.sidebar:
+        pdf_file = st.file_uploader("📄 PDF 업로드", type=["pdf"], key="annotate_pdf")
+        if pdf_file:
+            st.session_state.pdf_file_bytes = pdf_file.read()
+            st.session_state.pdf_page = 0
+
+        st.markdown("---")
+        st.markdown("🖌️ **펜 설정**")
+        st.session_state["drawing_mode"] = st.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
+        st.session_state["stroke_width"] = st.slider("펜 굵기", 1, 25, 3)
+        if st.session_state["drawing_mode"] == 'point':
+            st.session_state["point_display_radius"] = st.slider("포인트 반지름", 1, 25, 3)
+        st.session_state["stroke_color"] = st.color_picker("펜 색상", "#ff0000")
+        st.session_state["realtime_update"] = st.checkbox("실시간 반영", True)
+
     if "pdf_file_bytes" in st.session_state:
         doc = fitz.open(stream=st.session_state.pdf_file_bytes, filetype="pdf")
 
@@ -205,18 +217,3 @@ elif tab_selection == "PDF 필기":
         )
     else:
         st.info("사이드바에서 PDF를 업로드해 주세요.")
-
-    with st.sidebar:
-        pdf_file = st.file_uploader("📄 PDF 업로드", type=["pdf"], key="annotate_pdf")
-        if pdf_file:
-            st.session_state.pdf_file_bytes = pdf_file.read()
-            st.session_state.pdf_page = 0
-
-        st.markdown("---")
-        st.markdown("🖌️ **펜 설정**")
-        st.session_state["drawing_mode"] = st.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
-        st.session_state["stroke_width"] = st.slider("펜 굵기", 1, 25, 3)
-        if st.session_state["drawing_mode"] == 'point':
-            st.session_state["point_display_radius"] = st.slider("포인트 반지름", 1, 25, 3)
-        st.session_state["stroke_color"] = st.color_picker("펜 색상", "#ff0000")
-        st.session_state["realtime_update"] = st.checkbox("실시간 반영", True)
