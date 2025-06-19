@@ -24,6 +24,8 @@ if "merged_pdf_path" not in st.session_state:
 if "NanumFontLoaded" not in st.session_state:
     pdfmetrics.registerFont(TTFont("Nanum", "NanumBarunGothic.ttf"))
     st.session_state.NanumFontLoaded = True
+if "tab_selection" not in st.session_state:
+    st.session_state.tab_selection = "PDF 문제/답지 도구"
 
 def show_header():
     cols = st.columns([1, 6])
@@ -35,18 +37,12 @@ def show_header():
 # ------------------- 헤더 출력 -------------------
 show_header()
 
-# ------------------- 탭 분기 -------------------
-# 탭 이름 정의
-tab_names = ["PDF 문제/답지 도구", "PDF 필기"]
-tab1, tab2 = st.tabs(tab_names)
-
-# 세션에 현재 탭 정보 저장
-if "current_tab" not in st.session_state:
-    st.session_state.current_tab = tab_names[0]
+# ------------------- 탭 선택 (사이드바 기반) -------------------
+tab_selection = st.sidebar.radio("기능 선택", ["PDF 문제/답지 도구", "PDF 필기"])
+st.session_state.tab_selection = tab_selection
 
 # ------------------- PDF 문제/답지 도구 -------------------
-with tab1:
-    st.session_state.current_tab = tab_names[0]
+if tab_selection == "PDF 문제/답지 도구":
     if st.session_state.step == 1:
         st.header("1단계: PDF 파일 업로드")
 
@@ -173,20 +169,16 @@ with tab1:
             except Exception as e:
                 st.error(f"입력 오류: {e}")
 
-# ------------------- PDF 필기 탭 -------------------
-with tab2:
-    st.session_state.current_tab = tab_names[1]
+# ------------------- PDF 필기 -------------------
+elif tab_selection == "PDF 필기":
     st.header("✏️ PDF 페이지에 직접 필기하기")
 
-    # PDF 로딩
     if "pdf_file_bytes" in st.session_state:
         doc = fitz.open(stream=st.session_state.pdf_file_bytes, filetype="pdf")
 
-        # 현재 페이지 상태 초기화
         if "pdf_page" not in st.session_state:
             st.session_state.pdf_page = 0
 
-        # 페이지 이동 버튼
         col1, col2 = st.columns(2)
         with col1:
             if st.button("⬅ 이전"):
@@ -195,14 +187,12 @@ with tab2:
             if st.button("다음 ➡"):
                 st.session_state.pdf_page = min(len(doc) - 1, st.session_state.pdf_page + 1)
 
-        # 현재 페이지 이미지 생성
         page = doc[st.session_state.pdf_page]
-        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # 해상도 조절
+        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
 
-        # 캔버스
         st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",  # 도형 내부 색상
+            fill_color="rgba(255, 165, 0, 0.3)",
             stroke_width=st.session_state.get("stroke_width", 3),
             stroke_color=st.session_state.get("stroke_color", "#ff0000"),
             background_image=img,
@@ -216,13 +206,11 @@ with tab2:
     else:
         st.info("사이드바에서 PDF를 업로드해 주세요.")
 
-# ------------------- 사이드바 조건부 출력 -------------------
-if st.session_state.current_tab == tab_names[1]:
     with st.sidebar:
         pdf_file = st.file_uploader("📄 PDF 업로드", type=["pdf"], key="annotate_pdf")
         if pdf_file:
             st.session_state.pdf_file_bytes = pdf_file.read()
-            st.session_state.pdf_page = 0  # 새 PDF 업로드 시 첫 페이지로 초기화
+            st.session_state.pdf_page = 0
 
         st.markdown("---")
         st.markdown("🖌️ **펜 설정**")
@@ -232,5 +220,3 @@ if st.session_state.current_tab == tab_names[1]:
             st.session_state["point_display_radius"] = st.slider("포인트 반지름", 1, 25, 3)
         st.session_state["stroke_color"] = st.color_picker("펜 색상", "#ff0000")
         st.session_state["realtime_update"] = st.checkbox("실시간 반영", True)
-else:
-    st.sidebar.empty()
