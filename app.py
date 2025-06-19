@@ -167,6 +167,7 @@ with tab1:
                 st.error(f"입력 오류: {e}")
 
 # ------------------- PDF 필기 탭 -------------------
+import pandas as pd
 with tab2:
     # Specify canvas parameters in application
     drawing_mode = st.sidebar.selectbox(

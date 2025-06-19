@@ -6,3 +6,4 @@ Pillow
 reportlab
 streamlit-js-eval
 streamlit-drawable-canvas
+pandas
