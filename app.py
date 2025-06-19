@@ -33,7 +33,7 @@ def show_header():
         st.markdown("<h1 style='margin-bottom:0;'>KONG PDF</h1>", unsafe_allow_html=True)
 
 # ------------------- 탭 분기 -------------------
-tab1, tab2 = st.tabs(["📘 PDF 문제/답지 도구", "✏️ PDF 필기"])
+tab1, tab2 = st.tabs(["📘 문제/답지 분리 도구", "✏️ PDF 필기"])
 
 # ------------------- PDF 문제/답지 도구 -------------------
 with tab1:
@@ -169,30 +169,68 @@ with tab1:
 # ------------------- PDF 필기 탭 -------------------
 with tab2:
     show_header()
-    st.header("✏️ PDF 페이지에 직접 필기하기")
+    st.header("✏️ PDF Freehand Annotation")
 
     uploaded_pdf = st.file_uploader("PDF 파일 업로드 (1개만)", type=["pdf"], key="note_pdf")
-    if uploaded_pdf:
-        doc = fitz.open(stream=uploaded_pdf.read(), filetype="pdf")
-        page = doc.load_page(0)
-        pix = page.get_pixmap()
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        st.image(img, caption="페이지 미리보기")
 
+    if uploaded_pdf:
+        # 페이지 로딩
+        doc = fitz.open(stream=uploaded_pdf.read(), filetype="pdf")
+        total_pages = len(doc)
+        page_idx = st.slider("페이지 선택", 1, total_pages, 1) - 1
+        page = doc.load_page(page_idx)
+
+        # 배경 이미지 생성
+        pix = page.get_pixmap(dpi=150)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+        # 펜 색상 선택
+        pen_color = st.selectbox("펜 색상 선택", ["검정", "파랑", "빨강"])
+        color_map = {"검정": "#000000", "파랑": "#0000FF", "빨강": "#FF0000"}
+
+        # 필기 캔버스
         canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",
-            stroke_width=2,
-            stroke_color="#000000",
+            fill_color="rgba(255, 255, 255, 0)",  # 배경 투명
+            stroke_width=3,
+            stroke_color=color_map[pen_color],
             background_image=img,
             height=img.height,
             width=img.width,
             drawing_mode="freedraw",
-            key="canvas_draw",
+            key=f"canvas_{page_idx}",
         )
 
+        # 필기 결과 저장용 상태값 초기화
+        if "drawn_images" not in st.session_state:
+            st.session_state.drawn_images = {}
+
+        # 저장 버튼: 현재 페이지 필기 결과 저장
         if canvas_result.image_data is not None:
-            result_img = Image.fromarray(canvas_result.image_data.astype("uint8"))
-            buffer = BytesIO()
-            result_img.save(buffer, format="PDF")
-            buffer.seek(0)
-            st.download_button("💾 필기 저장 PDF", buffer, file_name="annotated.pdf")
+            st.session_state.drawn_images[page_idx] = Image.fromarray(canvas_result.image_data.astype("uint8"))
+
+        # 전체 PDF로 저장 버튼
+        if st.button("📄 모든 필기 저장 (PDF)"):
+            writer = PdfWriter()
+            for i in range(total_pages):
+                page = doc.load_page(i)
+                pix = page.get_pixmap(dpi=150)
+                base_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+
+                # 필기 적용 여부 확인
+                if i in st.session_state.drawn_images:
+                    overlay = st.session_state.drawn_images[i].convert("RGBA").resize(base_img.size)
+                    combined = Image.alpha_composite(base_img.convert("RGBA"), overlay)
+                else:
+                    combined = base_img
+
+                # PIL → PDF
+                buffer = BytesIO()
+                combined.convert("RGB").save(buffer, format="PDF")
+                buffer.seek(0)
+                temp_pdf = PdfReader(buffer)
+                writer.add_page(temp_pdf.pages[0])
+
+            final_output = BytesIO()
+            writer.write(final_output)
+            final_output.seek(0)
+            st.download_button("💾 전체 필기 PDF 저장", data=final_output, file_name="annotated_all_pages.pdf")
