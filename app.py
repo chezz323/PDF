@@ -36,10 +36,17 @@ def show_header():
 show_header()
 
 # ------------------- 탭 분기 -------------------
-tab1, tab2 = st.tabs(["📘 문제/답지 분리 도구", "✏️ PDF 필기"])
+# 탭 이름 정의
+tab_names = ["PDF 문제/답지 도구", "PDF 필기"]
+tab1, tab2 = st.tabs(tab_names)
+
+# 세션에 현재 탭 정보 저장
+if "current_tab" not in st.session_state:
+    st.session_state.current_tab = tab_names[0]
 
 # ------------------- PDF 문제/답지 도구 -------------------
 with tab1:
+    st.session_state.current_tab = tab_names[0]
     if st.session_state.step == 1:
         st.header("1단계: PDF 파일 업로드")
 
@@ -168,6 +175,7 @@ with tab1:
 
 # ------------------- PDF 필기 탭 -------------------
 with tab2:
+    st.session_state.current_tab = tab_names[1]
     st.header("✏️ PDF 페이지에 직접 필기하기")
     pdf_file = st.sidebar.file_uploader("📄 PDF 업로드", type=["pdf"])
     if pdf_file:
@@ -192,12 +200,12 @@ with tab2:
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples).convert("RGBA")
 
         # 사이드바 - 캔버스 설정
-        drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
+        '''drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
         stroke_width = st.sidebar.slider("펜 굵기", 1, 25, 3)
         if drawing_mode == 'point':
             point_display_radius = st.sidebar.slider("포인트 반지름", 1, 25, 3)
         stroke_color = st.sidebar.color_picker("펜 색상", "#ff0000")
-        realtime_update = st.sidebar.checkbox("실시간 반영", True)
+        realtime_update = st.sidebar.checkbox("실시간 반영", True)'''
 
         # 캔버스
         st_canvas(
@@ -212,3 +220,15 @@ with tab2:
             point_display_radius=point_display_radius if drawing_mode == "point" else 0,
             key=f"canvas_{st.session_state.pdf_page}"
         )
+
+# 사이드바는 조건부로 UI 표시
+if st.session_state.current_tab == "PDF 필기":
+    pdf_file = st.sidebar.file_uploader("📄 PDF 업로드", type=["pdf"])
+    drawing_mode = st.sidebar.selectbox("도구 선택", ("freedraw", "line", "rect", "circle", "transform", "point"))
+    stroke_width = st.sidebar.slider("펜 굵기", 1, 25, 3)
+    if drawing_mode == 'point':
+        point_display_radius = st.sidebar.slider("포인트 반지름", 1, 25, 3)
+    stroke_color = st.sidebar.color_picker("펜 색상", "#ff0000")
+else:
+    # 다른 탭에서는 사이드바 비워두기
+    st.sidebar.empty()
