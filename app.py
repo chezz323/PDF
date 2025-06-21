@@ -133,7 +133,11 @@ if tab_selection == "PDF 문제/답지 도구":
             c.drawCentredString(x, y, text)
             c.save()
             buffer.seek(0)
-            return PdfReader(buffer).pages[0]
+
+            # PdfReader 전체 문서를 만들고 첫 번째 페이지만 추출
+            wm_pdf = PdfReader(buffer)
+            return wm_pdf.pages[0]
+
 
         def apply_watermarks(input_pdf_path, output_pdf_path, wm_texts):
             reader = PdfReader(input_pdf_path)
