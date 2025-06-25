@@ -6,3 +6,4 @@ PyMuPDF
 pypdf
 reportlab
 streamlit-js-eval
+PyPDF2
